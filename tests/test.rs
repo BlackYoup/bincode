@@ -3,6 +3,8 @@ extern crate serde_derive;
 
 extern crate bincode;
 extern crate byteorder;
+extern crate bytes;
+extern crate rand;
 #[macro_use]
 extern crate serde;
 extern crate serde_bytes;
@@ -17,6 +19,9 @@ use bincode::{
     DefaultOptions, ErrorKind, Options, Result,
 };
 use serde::de::{Deserialize, DeserializeSeed, Deserializer, SeqAccess, Visitor};
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
+use bytes::Bytes;
 
 const LEN_SIZE: u64 = 8;
 
@@ -29,8 +34,12 @@ where
 
     {
         let encoded = options.serialize(&element).unwrap();
+        let x = std::time::Instant::now();
         let decoded: V = options.deserialize(&encoded[..]).unwrap();
+        println!("deserialize simple: {:?}", x.elapsed());
+        let y = std::time::Instant::now();
         let decoded_reader = options.deserialize_from(&mut &encoded[..]).unwrap();
+        println!("deserialize reader: {:?}", y.elapsed());
 
         assert_eq!(element, decoded);
         assert_eq!(element, decoded_reader);
@@ -897,4 +906,22 @@ fn test_byte_vec_struct() {
     };
 
     the_same(byte_struct);
+}
+
+#[test]
+fn long_deserialize() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    pub enum PeerMessage {
+        FileEnd(String),
+        FilePart(String, Bytes),
+    }
+
+    let rand_string: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(1024 * 1024)
+        .collect();
+
+    let my_type = PeerMessage::FilePart(String::from("thisisatest"), Bytes::from(rand_string));
+
+    the_same(my_type);
 }
